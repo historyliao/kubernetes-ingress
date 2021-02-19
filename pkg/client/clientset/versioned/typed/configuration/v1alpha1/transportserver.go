@@ -24,6 +24,7 @@ type TransportServersGetter interface {
 type TransportServerInterface interface {
 	Create(ctx context.Context, transportServer *v1alpha1.TransportServer, opts v1.CreateOptions) (*v1alpha1.TransportServer, error)
 	Update(ctx context.Context, transportServer *v1alpha1.TransportServer, opts v1.UpdateOptions) (*v1alpha1.TransportServer, error)
+	UpdateStatus(ctx context.Context, virtualServer *v1alpha1.TransportServer, opts v1.UpdateOptions) (*v1alpha1.TransportServer, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.TransportServer, error)

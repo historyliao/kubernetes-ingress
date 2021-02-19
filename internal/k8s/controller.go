@@ -868,6 +868,8 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 		return
 	}
 
+	// TODO defer updateStatus() ?
+
 	if !tsExists {
 		glog.V(2).Infof("Deleting TransportServer: %v\n", key)
 
@@ -1027,6 +1029,11 @@ func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProbl
 				err := lbc.statusUpdater.UpdateVirtualServerStatus(obj, state, p.Reason, p.Message)
 				if err != nil {
 					glog.Errorf("Error when updating the status for VirtualServer %v/%v: %v", obj.Namespace, obj.Name, err)
+				}
+			case *conf_v1alpha1.TransportServer:
+				err := lbc.statusUpdater.UpdateTransportServerStatus(obj, state, p.Reason, p.Message)
+				if err != nil {
+					glog.Errorf("Error when updating the status for TransportServer %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.VirtualServerRoute:
 				var emptyVSes []*conf_v1.VirtualServer
@@ -1893,6 +1900,43 @@ func (lbc *LoadBalancerController) updatePoliciesStatus() error {
 
 	if len(allErrs) != 0 {
 		return fmt.Errorf("not all Policies statuses were updated: %v", allErrs)
+	}
+
+	return nil
+}
+
+func (lbc *LoadBalancerController) updateTransportServersStatusFromEvents() error {
+	var allErrs []error
+	for _, obj := range lbc.transportServerLister.List() {
+		ts := obj.(*conf_v1alpha1.TransportServer)
+
+		events, err := lbc.client.CoreV1().Events(ts.Namespace).List(context.TODO(),
+			meta_v1.ListOptions{FieldSelector: fmt.Sprintf("involvedObject.name=%v,involvedObject.uid=%v", ts.Name, ts.UID)})
+		if err != nil {
+			allErrs = append(allErrs, fmt.Errorf("error trying to get events for TransportServer %v/%v: %v", ts.Namespace, ts.Name, err))
+			break
+		}
+
+		if len(events.Items) == 0 {
+			continue
+		}
+
+		var timestamp time.Time
+		var latestEvent api_v1.Event
+		for _, event := range events.Items {
+			if event.CreationTimestamp.After(timestamp) {
+				latestEvent = event
+			}
+		}
+
+		err = lbc.statusUpdater.UpdateTransportServerStatus(ts, getStatusFromEventTitle(latestEvent.Reason), latestEvent.Reason, latestEvent.Message)
+		if err != nil {
+			allErrs = append(allErrs, err)
+		}
+	}
+
+	if len(allErrs) > 0 {
+		return fmt.Errorf("not all TransportServers statuses were updated: %v", allErrs)
 	}
 
 	return nil

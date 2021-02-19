@@ -56,7 +56,8 @@ type TransportServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec TransportServerSpec `json:"spec"`
+	Spec   TransportServerSpec   `json:"spec"`
+	Status TransportServerStatus `json:"status"`
 }
 
 // TransportServerSpec is the spec of the TransportServer resource.
@@ -103,6 +104,20 @@ type SessionParameters struct {
 // Action defines an action.
 type Action struct {
 	Pass string `json:"pass"`
+}
+
+// TransportServerStatus defines the status for the TransportServer resource.
+type TransportServerStatus struct {
+	State             string             `json:"state"`
+	Reason            string             `json:"reason"`
+	Message           string             `json:"message"`
+	ExternalEndpoints []ExternalEndpoint `json:"externalEndpoints,omitempty"`
+}
+
+// ExternalEndpoint defines the IP and ports used to connect to this resource.
+type ExternalEndpoint struct {
+	IP    string `json:"ip"`
+	Ports string `json:"ports"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
