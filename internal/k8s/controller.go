@@ -296,6 +296,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		ingressLister:            &lbc.ingressLister,
 		virtualServerLister:      lbc.virtualServerLister,
 		virtualServerRouteLister: lbc.virtualServerRouteLister,
+		transportServerLister:    lbc.transportServerLister,
 		policyLister:             lbc.policyLister,
 		keyFunc:                  keyFunc,
 		confClient:               input.ConfClient,
@@ -868,20 +869,17 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 		return
 	}
 
-	// TODO defer updateStatus() ?
-
 	if !tsExists {
 		glog.V(2).Infof("Deleting TransportServer: %v\n", key)
-
 		err := lbc.configurator.DeleteTransportServer(key)
 		if err != nil {
 			glog.Errorf("Error when deleting configuration for %v: %v", key, err)
 		}
+
 		return
 	}
 
 	glog.V(2).Infof("Adding or Updating TransportServer: %v\n", key)
-
 	ts := obj.(*conf_v1alpha1.TransportServer)
 
 	validationErr := lbc.transportServerValidator.ValidateTransportServer(ts)
@@ -890,7 +888,12 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 		if err != nil {
 			glog.Errorf("Error when deleting configuration for %v: %v", key, err)
 		}
-		lbc.recorder.Eventf(ts, api_v1.EventTypeWarning, "Rejected", "TransportServer %v is invalid and was rejected: %v", key, validationErr)
+
+		reason := "Rejected"
+		msg := fmt.Sprintf("TransportServer %v is invalid and was rejected: %v", key, validationErr)
+
+		lbc.recorder.Eventf(ts, api_v1.EventTypeWarning, reason, msg)
+		lbc.statusUpdater.UpdateTransportServerStatus(ts, conf_v1.StateInvalid, reason, msg)
 		return
 	}
 
@@ -899,25 +902,31 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 		if err != nil {
 			glog.Errorf("Error when deleting configuration for %v: %v", key, err)
 		}
-		lbc.recorder.Eventf(ts, api_v1.EventTypeWarning, "Rejected", "TransportServer %v references a non-existing listener and was rejected", key)
+
+		reason := "Rejected"
+		msg := fmt.Sprintf("TransportServer %v references a non-existing listener and was rejected", key)
+
+		lbc.recorder.Eventf(ts, api_v1.EventTypeWarning, reason, msg)
+		lbc.statusUpdater.UpdateTransportServerStatus(ts, conf_v1.StateInvalid, reason, msg)
 		return
 	}
 
 	tsEx := lbc.createTransportServer(ts)
-
 	addErr := lbc.configurator.AddOrUpdateTransportServer(tsEx)
-
-	eventTitle := "AddedOrUpdated"
-	eventType := api_v1.EventTypeNormal
-	eventWarningMessage := ""
-
 	if addErr != nil {
-		eventTitle = "AddedOrUpdatedWithError"
-		eventType = api_v1.EventTypeWarning
-		eventWarningMessage = fmt.Sprintf("but was not applied: %v", addErr)
+		reason := "AddedOrUpdatedWithError"
+		msg := fmt.Sprintf("TransportServer %v was updated but was not applied: %v", key, addErr)
+
+		lbc.recorder.Eventf(ts, api_v1.EventTypeWarning, reason, msg)
+		lbc.statusUpdater.UpdateTransportServerStatus(ts, conf_v1.StateInvalid, reason, msg)
+		return
 	}
 
-	lbc.recorder.Eventf(ts, eventType, eventTitle, "Configuration for %v was added or updated %v", key, eventWarningMessage)
+	reason := "AddedOrUpdated"
+	msg := fmt.Sprintf("TransportServer %v was added or updated", key)
+
+	lbc.recorder.Eventf(ts, api_v1.EventTypeNormal, reason, msg)
+	lbc.statusUpdater.UpdateTransportServerStatus(ts, conf_v1.StateValid, reason, msg)
 }
 
 func (lbc *LoadBalancerController) syncGlobalConfiguration(task task) {
@@ -1595,6 +1604,15 @@ func (lbc *LoadBalancerController) syncService(task task) {
 			err := lbc.statusUpdater.UpdateExternalEndpointsForResources(virtualServers)
 			if err != nil {
 				glog.V(3).Infof("error updating VirtualServer/VirtualServerRoute status in syncService: %v", err)
+			}
+
+			transportServers := lbc.configuration.GetResourcesWithFilter(resourceFilter{TransportServers: true})
+
+			glog.V(3).Infof("Updating status for %v TransportServers", len(transportServers))
+
+			err = lbc.statusUpdater.UpdateExternalEndpointsForResources(transportServers)
+			if err != nil {
+				glog.V(3).Infof("error updating TransportServers status in syncService: %v", err)
 			}
 		}
 

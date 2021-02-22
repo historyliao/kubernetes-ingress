@@ -199,3 +199,8 @@ func GetK8sVersion(client kubernetes.Interface) (v *version.Version, err error) 
 
 	return runningVersion, nil
 }
+
+// storeToTransportServerLister makes a Store that lists TransportServers
+type storeToTransportServerLister struct {
+	cache.Store
+}

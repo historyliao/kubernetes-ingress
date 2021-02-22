@@ -541,8 +541,9 @@ func (c *Configuration) GetResources() []Resource {
 }
 
 type resourceFilter struct {
-	Ingresses      bool
-	VirtualServers bool
+	Ingresses        bool
+	VirtualServers   bool
+	TransportServers bool
 }
 
 // GetResourcesWithFilter returns resources using the filter.

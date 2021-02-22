@@ -626,6 +626,10 @@ func TestFindTransportServersForService(t *testing.T) {
 	}
 }
 
+func TestTransportServerStatus(t *testing.T) {
+
+}
+
 func TestFormatWarningsMessages(t *testing.T) {
 	warnings := []string{"Test warning", "Test warning 2"}
 

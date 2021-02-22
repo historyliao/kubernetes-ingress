@@ -335,13 +335,13 @@ func (su *statusUpdater) ClearStatusFromIngressLink() {
 }
 
 func (su *statusUpdater) retryUpdateTransportServerStatus(tsCopy *conf_v1alpha1.TransportServer) error {
-	vs, err := su.confClient.K8sV1alpha1().TransportServers(tsCopy.Namespace).Get(context.TODO(), tsCopy.Name, metav1.GetOptions{})
+	ts, err := su.confClient.K8sV1alpha1().TransportServers(tsCopy.Namespace).Get(context.TODO(), tsCopy.Name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
 
-	vs.Status = tsCopy.Status
-	_, err = su.confClient.K8sV1alpha1().TransportServers(vs.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
+	ts.Status = tsCopy.Status
+	_, err = su.confClient.K8sV1alpha1().TransportServers(ts.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -396,9 +396,8 @@ func hasVsStatusChanged(vs *conf_v1.VirtualServer, state string, reason string, 
 }
 
 // UpdateTransportServerStatus updates the status of a TransportServer.
-func (su *statusUpdater) UpdateTransportServerStatus(vs *conf_v1alpha1.TransportServer, state string, reason string, message string) error {
-	// Get an up-to-date TransportServer from the Store
-	tsLatest, exists, err := su.transportServerLister.Get(vs)
+func (su *statusUpdater) UpdateTransportServerStatus(ts *conf_v1alpha1.TransportServer, state string, reason string, message string) error {
+	tsLatest, exists, err := su.transportServerLister.Get(ts)
 	if err != nil {
 		glog.V(3).Infof("error getting TransportServer from Store: %v", err)
 		return err
@@ -408,12 +407,11 @@ func (su *statusUpdater) UpdateTransportServerStatus(vs *conf_v1alpha1.Transport
 		return nil
 	}
 
-	tsCopy := tsLatest.(*conf_v1alpha1.TransportServer).DeepCopy()
-
-	if !hasTsStatusChanged(tsCopy, state, reason, message) {
+	if !hasTsStatusChanged(tsLatest.(*conf_v1alpha1.TransportServer), state, reason, message) {
 		return nil
 	}
 
+	tsCopy := tsLatest.(*conf_v1alpha1.TransportServer).DeepCopy()
 	tsCopy.Status.State = state
 	tsCopy.Status.Reason = reason
 	tsCopy.Status.Message = message
@@ -439,14 +437,14 @@ func toAlphaV1(endpoints []v1.ExternalEndpoint) []conf_v1alpha1.ExternalEndpoint
 	return alphaEndpoints
 }
 
-func hasTsStatusChanged(vs *conf_v1alpha1.TransportServer, state string, reason string, message string) bool {
-	if vs.Status.State != state {
+func hasTsStatusChanged(ts *conf_v1alpha1.TransportServer, state string, reason string, message string) bool {
+	if ts.Status.State != state {
 		return true
 	}
-	if vs.Status.Reason != reason {
+	if ts.Status.Reason != reason {
 		return true
 	}
-	if vs.Status.Message != message {
+	if ts.Status.Message != message {
 		return true
 	}
 	return false

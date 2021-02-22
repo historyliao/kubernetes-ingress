@@ -16,7 +16,24 @@ spec:
     singular: transportserver
   scope: Namespaced
   versions:
-    - name: v1alpha1
+    - additionalPrinterColumns:
+        - description: Current state of the VirtualServer. If the resource has a valid status, it means it has been validated and accepted by the Ingress Controller.
+          jsonPath: .status.state
+          name: State
+          type: string
+        - jsonPath: .status.reason
+          name: Reason
+          type: string
+        - jsonPath: .status.externalEndpoints[*].ip
+          name: IP
+          type: string
+        - jsonPath: .status.externalEndpoints[*].ports
+          name: Ports
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
       schema:
         openAPIV3Schema:
           description: TransportServer defines the TransportServer resource.
@@ -88,8 +105,30 @@ spec:
                         type: integer
                       service:
                         type: string
+            status:
+              description: TransportServerStatus defines the status for the TransportServer resource.
+              type: object
+              properties:
+                externalEndpoints:
+                  type: array
+                  items:
+                    description: ExternalEndpoint defines the IP and ports used to connect to this resource.
+                    type: object
+                    properties:
+                      ip:
+                        type: string
+                      ports:
+                        type: string
+                message:
+                  type: string
+                reason:
+                  type: string
+                state:
+                  type: string
       served: true
       storage: true
+      subresources:
+        status: {}
 status:
   acceptedNames:
     kind: ""
