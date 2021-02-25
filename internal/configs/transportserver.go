@@ -5,6 +5,7 @@ import (
 
 	"github.com/nginxinc/kubernetes-ingress/internal/configs/version2"
 	conf_v1alpha1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 const nginxNonExistingUnixSocket = "unix:/var/lib/nginx/non-existing-unix-socket.sock"
@@ -14,6 +15,25 @@ type TransportServerEx struct {
 	TransportServer *conf_v1alpha1.TransportServer
 	Endpoints       map[string][]string
 	PodsByIP        map[string]string
+}
+
+// TransportServerConfigurator generates a transportServer configuration
+type transportServerConfigurator struct {
+	isPlus         bool
+	enableSnippets bool
+	warnings       Warnings
+}
+
+// newTransportServerConfigurator creates a new TransportServerConfigurator
+func newTransportServerConfigurator(
+	isPlus bool,
+	staticParams *StaticConfigParams,
+) *transportServerConfigurator {
+	return &transportServerConfigurator{
+		isPlus:         isPlus,
+		enableSnippets: staticParams.EnableSnippets,
+		warnings:       make(map[runtime.Object][]string),
+	}
 }
 
 func (tsEx *TransportServerEx) String() string {
@@ -29,10 +49,10 @@ func (tsEx *TransportServerEx) String() string {
 }
 
 // generateTransportServerConfig generates a full configuration for a TransportServer.
-func generateTransportServerConfig(transportServerEx *TransportServerEx, listenerPort int, isPlus bool) version2.TransportServerConfig {
+func generateTransportServerConfig(transportServerEx *TransportServerEx, listenerPort int, tsc *transportServerConfigurator) version2.TransportServerConfig {
 	upstreamNamer := newUpstreamNamerForTransportServer(transportServerEx.TransportServer)
 
-	upstreams := generateStreamUpstreams(transportServerEx, upstreamNamer, isPlus)
+	upstreams := generateStreamUpstreams(transportServerEx, upstreamNamer, tsc.isPlus)
 
 	healthCheck := generateTransportServerHealthCheck(transportServerEx.TransportServer.Spec.Action.Pass,
 		transportServerEx.TransportServer.Spec.Upstreams)
@@ -58,11 +78,14 @@ func generateTransportServerConfig(transportServerEx *TransportServerEx, listene
 		proxyTimeout = transportServerEx.TransportServer.Spec.SessionParameters.Timeout
 	}
 
-	statusZone := ""
+	serverSnippets := generateSnippets(tsc.enableSnippets, transportServerEx.TransportServer.Spec.Snippets, []string{})
+	if !tsc.enableSnippets && (transportServerEx.TransportServer.Spec.Snippets != "") {
+		tsc.warnings.AddWarning(transportServerEx.TransportServer, "snippet specified but snippets feature is not enabled")
+	}
+
+	statusZone := transportServerEx.TransportServer.Spec.Listener.Name
 	if transportServerEx.TransportServer.Spec.Listener.Name == conf_v1alpha1.TLSPassthroughListenerName {
 		statusZone = transportServerEx.TransportServer.Spec.Host
-	} else {
-		statusZone = transportServerEx.TransportServer.Spec.Listener.Name
 	}
 
 	return version2.TransportServerConfig{
@@ -83,6 +106,7 @@ func generateTransportServerConfig(transportServerEx *TransportServerEx, listene
 			ProxyNextUpstreamTimeout: generateTime(nextUpstreamTimeout, "0"),
 			ProxyNextUpstreamTries:   nextUpstreamTries,
 			HealthCheck:              healthCheck,
+			Snippets:                 serverSnippets,
 		},
 		Upstreams: upstreams,
 	}
