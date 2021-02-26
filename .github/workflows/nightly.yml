@@ -216,6 +216,12 @@ jobs:
             type: oss
             k8s: 1.17.11
           - os: ubuntu-20.04
+            image: nginx-ingress
+            tag: ${{ github.sha }}
+            marker: ''
+            type: oss
+            k8s: 1.16.15
+          - os: ubuntu-20.04
             image: nginx-plus-ingress
             tag: ${{ github.sha }}
             marker: ''
@@ -239,6 +245,12 @@ jobs:
             marker: ''
             type: plus
             k8s: 1.17.11
+          - os: ubuntu-20.04
+            image: nginx-plus-ingress
+            tag: ${{ github.sha }}
+            marker: ''
+            type: plus
+            k8s: 1.16.15
           - os: ubuntu-20.04
             image: nginx-plus-ingress
             tag: ${{ github.sha }}-ap
